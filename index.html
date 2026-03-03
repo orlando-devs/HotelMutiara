@@ -212,15 +212,14 @@
             bgmGain = audioCtx.createGain();
             
             osc1.type = 'sine'; osc2.type = 'triangle';
-            osc1.frequency.value = 40; // Sangat rendah
-            osc2.frequency.value = 43; // Disonansi seram
+            osc1.frequency.value = 40; 
+            osc2.frequency.value = 43; 
             
-            bgmGain.gain.value = 0.05; // Suara kecil
+            bgmGain.gain.value = 0.05;
 
-            // LFO untuk membuat suara bervolume naik-turun perlahan (bernafas)
             const lfo = audioCtx.createOscillator();
             lfo.type = 'sine';
-            lfo.frequency.value = 0.1; // 1 siklus per 10 detik
+            lfo.frequency.value = 0.1; 
             lfoGain = audioCtx.createGain();
             lfoGain.gain.value = 0.02;
             
@@ -237,8 +236,6 @@
         function playFootstep(isSprint) {
             if (!audioCtx) return;
             const timeNow = audioCtx.currentTime;
-            
-            // Membuat white noise untuk langkah kaki
             const bufferSize = audioCtx.sampleRate * 0.1; 
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
@@ -249,10 +246,10 @@
             
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.value = isSprint ? 1200 : 800; // Sprint lebih nyaring
+            filter.frequency.value = isSprint ? 1200 : 800; 
 
             const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(isSprint ? 0.04 : 0.015, timeNow); // Suara kecil
+            gain.gain.setValueAtTime(isSprint ? 0.04 : 0.015, timeNow); 
             gain.gain.exponentialRampToValueAtTime(0.001, timeNow + 0.1);
 
             noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
@@ -269,7 +266,7 @@
             osc.frequency.setValueAtTime(isTick ? 800 : 600, timeNow);
             osc.frequency.exponentialRampToValueAtTime(0.01, timeNow + 0.05);
             
-            gain.gain.setValueAtTime(0.008, timeNow); // Suara sangat kecil
+            gain.gain.setValueAtTime(0.008, timeNow);
             gain.gain.exponentialRampToValueAtTime(0.001, timeNow + 0.05);
             
             osc.connect(gain); gain.connect(audioCtx.destination);
@@ -284,9 +281,9 @@
             
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(150, timeNow);
-            osc.frequency.exponentialRampToValueAtTime(40, timeNow + 0.6); // Nada berderit turun
+            osc.frequency.exponentialRampToValueAtTime(40, timeNow + 0.6); 
             
-            gain.gain.setValueAtTime(0.08, timeNow); // Agak kedengaran
+            gain.gain.setValueAtTime(0.08, timeNow); 
             gain.gain.linearRampToValueAtTime(0.001, timeNow + 0.6);
             
             osc.connect(gain); gain.connect(audioCtx.destination);
@@ -640,13 +637,13 @@
                     if(isMobile) document.getElementById('mobile-ui').style.display = 'none';
                 }
                 else if (hitObj.userData.isLevel10Door) {
-                    playDoorSound(); // Bunyi pintu terbuka
+                    playDoorSound(); 
                     hitObj.rotation.y = Math.PI / 3;
                     if (hitObj.userData.isCorrect) { triggerTrueEnding(); } 
                     else { setTimeout(() => { endGame(false, "Itu bukan jalan keluarnya..."); }, 500); }
                 }
                 else if (hitObj.userData.isDoor) {
-                    playDoorSound(); // Bunyi pintu terbuka
+                    playDoorSound(); 
                     hitObj.rotation.y = hitObj.userData.isEnd ? Math.PI/4 : -Math.PI/4;
                     setTimeout(() => { checkDoorChoice(hitObj.userData.isEnd); }, 500);
                 }
@@ -670,7 +667,7 @@
         });
 
         document.getElementById('btn-play').addEventListener('click', () => {
-            initAudio(); // Mulai sistem audio saat berinteraksi dengan DOM
+            initAudio(); 
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('device-selection').classList.remove('hidden');
         });
@@ -786,36 +783,63 @@
             }
         });
 
-        // --- MOBILE CONTROLS (TOUCH) ---
+        // --- MOBILE CONTROLS (FIXED TOUCH) ---
         const btnSprint = document.getElementById('btn-mobile-sprint');
         btnSprint.addEventListener('touchstart', (e) => { e.preventDefault(); isSprinting = true; btnSprint.style.transform = 'scale(0.9)'; });
         btnSprint.addEventListener('touchend', (e) => { e.preventDefault(); isSprinting = false; btnSprint.style.transform = 'scale(1)'; });
+        btnSprint.addEventListener('touchcancel', (e) => { e.preventDefault(); isSprinting = false; btnSprint.style.transform = 'scale(1)'; });
         
         const btnUse = document.getElementById('btn-mobile-use');
         btnUse.addEventListener('touchstart', (e) => { e.preventDefault(); interactObject(); btnUse.style.transform = 'scale(0.9)'; });
         btnUse.addEventListener('touchend', (e) => { e.preventDefault(); btnUse.style.transform = 'scale(1)'; });
+        btnUse.addEventListener('touchcancel', (e) => { e.preventDefault(); btnUse.style.transform = 'scale(1)'; });
 
+        // SISTEM JOYSTICK ANALOG
         const joystickZone = document.getElementById('joystick-zone');
         const joystickKnob = document.getElementById('joystick-knob');
-        let joyActive = false; let joyOrigin = { x: 0, y: 0 };
+        let joyActive = false; 
+        let joyOrigin = { x: 0, y: 0 };
+        let joyVector = { x: 0, y: 0 }; // Vektor Analog 360
+        let joyTouchId = null; // Melacak jari spesifik
         
         joystickZone.addEventListener('touchstart', (e) => {
-            e.preventDefault(); joyActive = true;
-            const touch = e.changedTouches[0]; const rect = joystickZone.getBoundingClientRect();
-            joyOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-            updateJoystick(touch.clientX, touch.clientY);
+            e.preventDefault(); 
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(joyTouchId === null) {
+                    joyTouchId = e.changedTouches[i].identifier;
+                    joyActive = true;
+                    const rect = joystickZone.getBoundingClientRect();
+                    joyOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                    updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                    break;
+                }
+            }
         });
 
         joystickZone.addEventListener('touchmove', (e) => {
-            e.preventDefault(); if(!joyActive) return;
-            updateJoystick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            e.preventDefault(); 
+            if(!joyActive) return;
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyTouchId) {
+                    updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                    break;
+                }
+            }
         });
 
-        joystickZone.addEventListener('touchend', (e) => {
-            e.preventDefault(); joyActive = false;
-            joystickKnob.style.transform = `translate(-50%, -50%)`;
-            moveForward = moveBackward = moveLeft = moveRight = false;
-        });
+        function handleJoyEnd(e) {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyTouchId) {
+                    joyTouchId = null; joyActive = false;
+                    joystickKnob.style.transform = `translate(-50%, -50%)`;
+                    joyVector = { x: 0, y: 0 };
+                    break;
+                }
+            }
+        }
+        joystickZone.addEventListener('touchend', handleJoyEnd);
+        joystickZone.addEventListener('touchcancel', handleJoyEnd);
 
         function updateJoystick(clientX, clientY) {
             let dx = clientX - joyOrigin.x; let dy = clientY - joyOrigin.y;
@@ -824,31 +848,59 @@
             
             joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
             
-            let normX = dx / maxDist; let normY = dy / maxDist; const threshold = 0.2;
-            moveForward = normY < -threshold; moveBackward = normY > threshold; moveRight = normX > threshold; moveLeft = normX < -threshold;
+            joyVector.x = dx / maxDist; // Rentang -1 sampai 1
+            joyVector.y = dy / maxDist; // Rentang -1 sampai 1
         }
 
+        // SISTEM KAMERA LOOK AROUND
         const touchCamZone = document.getElementById('touch-camera-zone');
-        let lookActive = false; let lastLookX = 0, lastLookY = 0;
+        let lookActive = false; 
+        let lastLookX = 0, lastLookY = 0;
+        let lookTouchId = null;
 
         touchCamZone.addEventListener('touchstart', (e) => {
-            e.preventDefault(); lookActive = true;
-            lastLookX = e.changedTouches[0].clientX; lastLookY = e.changedTouches[0].clientY;
+            e.preventDefault(); 
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(lookTouchId === null) {
+                    lookTouchId = e.changedTouches[i].identifier;
+                    lookActive = true;
+                    lastLookX = e.changedTouches[i].clientX; 
+                    lastLookY = e.changedTouches[i].clientY;
+                    break;
+                }
+            }
         });
 
         touchCamZone.addEventListener('touchmove', (e) => {
-            e.preventDefault(); if(!lookActive || !isMobile || gameState !== 'PLAYING') return;
-            
-            let dx = e.changedTouches[0].clientX - lastLookX; let dy = e.changedTouches[0].clientY - lastLookY;
-            lastLookX = e.changedTouches[0].clientX; lastLookY = e.changedTouches[0].clientY;
+            e.preventDefault(); 
+            if(!lookActive || !isMobile || gameState !== 'PLAYING') return;
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === lookTouchId) {
+                    let dx = e.changedTouches[i].clientX - lastLookX; 
+                    let dy = e.changedTouches[i].clientY - lastLookY;
+                    lastLookX = e.changedTouches[i].clientX; 
+                    lastLookY = e.changedTouches[i].clientY;
 
-            const PI_2 = Math.PI / 2;
-            controls.getObject().rotation.y -= dx * 0.005;
-            camera.rotation.x -= dy * 0.005;
-            camera.rotation.x = Math.max(-PI_2, Math.min(PI_2, camera.rotation.x));
+                    const PI_2 = Math.PI / 2;
+                    controls.getObject().rotation.y -= dx * 0.006; // Sedikit dinaikkan sensitivitasnya
+                    camera.rotation.x -= dy * 0.006;
+                    camera.rotation.x = Math.max(-PI_2, Math.min(PI_2, camera.rotation.x));
+                    break;
+                }
+            }
         });
 
-        touchCamZone.addEventListener('touchend', (e) => { e.preventDefault(); lookActive = false; });
+        function handleLookEnd(e) {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === lookTouchId) {
+                    lookTouchId = null; lookActive = false;
+                    break;
+                }
+            }
+        }
+        touchCamZone.addEventListener('touchend', handleLookEnd);
+        touchCamZone.addEventListener('touchcancel', handleLookEnd);
 
         // --- GAME LOOP ---
         buildCorridorBase(false); 
@@ -865,8 +917,16 @@
 
             if (ceilingFan && gameState === 'PLAYING') ceilingFan.rotation.y += delta * 5;
 
+            // Evaluasi status bergerak (Analog Mobile vs PC Keyboard)
+            let isMoving = false;
+            if (isMobile && joyActive) {
+                isMoving = Math.abs(joyVector.x) > 0.1 || Math.abs(joyVector.y) > 0.1;
+            } else {
+                isMoving = moveForward || moveBackward || moveLeft || moveRight;
+            }
+
             let currentTargetFOV = targetFOV;
-            if (gameState === 'PLAYING' && !chaseActive && isSprinting && (moveForward || moveBackward || moveLeft || moveRight)) {
+            if (gameState === 'PLAYING' && !chaseActive && isSprinting && isMoving) {
                 currentTargetFOV = targetFOV + 10; 
             }
             if (camera.fov !== currentTargetFOV) {
@@ -901,26 +961,41 @@
                     if (intersects.length > 0 && intersects[0].distance < 4.0) crosshair.classList.add('active');
                     else crosshair.classList.remove('active');
 
+                    // Friksi / Gesekan Berhenti
                     velocity.x -= velocity.x * 10.0 * delta;
                     velocity.z -= velocity.z * 10.0 * delta;
 
-                    direction.z = Number(moveForward) - Number(moveBackward);
-                    direction.x = Number(moveRight) - Number(moveLeft);
-                    direction.normalize(); 
+                    // Mengatur arah gerak
+                    if (isMobile && joyActive) {
+                        direction.x = joyVector.x;
+                        direction.z = -joyVector.y; // Dibalik karena naik pada Y joystick berarti gerak maju ke -Z
+                    } else {
+                        direction.z = Number(moveForward) - Number(moveBackward);
+                        direction.x = Number(moveRight) - Number(moveLeft);
+                        if (direction.lengthSq() > 0) direction.normalize(); 
+                    }
 
                     const speedMulti = chaseActive ? 75.0 : (isSprinting ? 65.0 : 35.0); 
 
-                    if (moveForward || moveBackward) velocity.z -= direction.z * speedMulti * delta;
-                    if (moveLeft || moveRight) velocity.x -= direction.x * speedMulti * delta;
+                    // Menambahkan Kecepatan
+                    if (isMobile && joyActive) {
+                        // Sistem Analog (Jalan pelan kalau ditarik dikit)
+                        const magnitude = Math.min(1.0, Math.sqrt(joyVector.x*joyVector.x + joyVector.y*joyVector.y));
+                        velocity.z -= direction.z * speedMulti * magnitude * delta;
+                        velocity.x -= direction.x * speedMulti * magnitude * delta;
+                    } else {
+                        if (moveForward || moveBackward) velocity.z -= direction.z * speedMulti * delta;
+                        if (moveLeft || moveRight) velocity.x -= direction.x * speedMulti * delta;
+                    }
 
                     controls.moveRight(-velocity.x * delta);
                     controls.moveForward(-velocity.z * delta);
 
                     // Suara Langkah Kaki
-                    if (moveForward || moveBackward || moveLeft || moveRight) {
+                    if (isMoving) {
                         let stepInterval = isSprinting ? 0.3 : 0.6;
                         if (time - lastStepTime > stepInterval) {
-                            playFootstep(isSprinting);
+                            playFootstep(isSSprint);
                             lastStepTime = time;
                         }
                     }
@@ -931,10 +1006,12 @@
                     if (pos.z > doorStartZ - 1 && !chaseActive) pos.z = doorStartZ - 1; 
                     if (pos.z < endCorridorZ + 2) pos.z = endCorridorZ + 2;
 
+                    // Efek Langkah Kaki Mengayun (Head bobbing)
                     const bobbingSpeed = isSprinting ? 22 : 15;
-                    if (moveForward || moveBackward || moveLeft || moveRight) { pos.y = playerHeight + Math.sin(time * bobbingSpeed) * 0.06; } 
+                    if (isMoving) { pos.y = playerHeight + Math.sin(time * bobbingSpeed) * 0.06; } 
                     else { pos.y = playerHeight; }
 
+                    // Kejaran Anomali Lantai 10
                     if (isLevel10) {
                         if (!chaseActive) {
                             level10Timer += delta;
