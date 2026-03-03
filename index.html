@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Koridor 10: Mutiara Hotel</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; -webkit-user-select: none; touch-action: none; }
+        #gameCanvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+        
+        #crosshair { width: 6px; height: 6px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.8); pointer-events: none; transition: transform 0.2s, background-color 0.2s; box-shadow: 0 0 4px #000; display: none; }
+        #crosshair.active { transform: scale(2.5); background-color: rgba(255, 50, 50, 0.9); border: 1px solid black; }
+
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; pointer-events: auto; z-index: 20; color: white; transition: opacity 0.5s; }
+        .hidden { opacity: 0; pointer-events: none !important; display: none !important; }
+        
+        /* Menu Utama */
+        #main-menu, #device-selection { background: radial-gradient(circle at left, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 60%); justify-content: center; align-items: flex-start; padding-left: 8%; box-sizing: border-box; }
+        #main-menu h1, #device-selection h1 { font-size: 4vw; min-font-size: 3rem; color: #aa0000; text-shadow: 3px 3px 10px #000; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 5px; text-align: left; margin-top: 0; }
+        #main-menu h2 { font-size: 2vw; min-font-size: 1.5rem; color: #ccc; margin-bottom: 50px; font-weight: normal; text-align: left; text-shadow: 2px 2px 5px #000; }
+        
+        .menu-btn { background: transparent; color: #ddd; border: none; font-size: 2rem; font-family: 'Courier New', Courier, monospace; text-transform: uppercase; cursor: pointer; text-align: left; margin: 10px 0; transition: all 0.3s; text-shadow: 2px 2px 4px #000; padding: 5px 0; position: relative; }
+        .menu-btn::before { content: '>'; position: absolute; left: -30px; opacity: 0; color: #aa0000; transition: all 0.3s; transform: translateX(-10px); }
+        .menu-btn:hover, .menu-btn:active { color: #fff; transform: translateX(10px); }
+        .menu-btn:hover::before, .menu-btn:active::before { opacity: 1; transform: translateX(0); }
+
+        /* Koran */
+        .news-screen { background: rgba(0,0,0,0.95); justify-content: center; align-items: center; z-index: 150; }
+        .news-container { background: #eee; color: #111; padding: 5vw; max-width: 650px; width: 80%; font-family: 'Times New Roman', Times, serif; border: 1px solid #333; box-shadow: 5px 5px 20px rgba(0,0,0,0.8); transform: rotate(-2deg); }
+        .news-header { font-size: 2.5rem; font-weight: bold; border-bottom: 3px solid #111; margin-bottom: 20px; text-align: center; text-transform: uppercase; }
+        .news-date { font-style: italic; font-size: 1rem; margin-bottom: 15px; color: #555; }
+        .news-body { font-size: 1.2rem; line-height: 1.6; text-align: justify; }
+
+        /* Animasi Mata */
+        #eyelid-top, #eyelid-bottom { position: absolute; left: 0; width: 100%; height: 50%; background: #000; z-index: 40; transition: height 3s cubic-bezier(0.45, 0.05, 0.55, 0.95); pointer-events: none; }
+        #eyelid-top { top: 0; } #eyelid-bottom { bottom: 0; }
+        .eyes-open #eyelid-top, .eyes-open #eyelid-bottom { height: 0%; }
+
+        /* UI In-Game */
+        #dialog-container { position: absolute; bottom: 15%; width: 100%; text-align: center; z-index: 50; pointer-events: auto; display: flex; flex-direction: column; align-items: center; }
+        .dialog-text { font-size: 1.5rem; color: #fff; text-shadow: 2px 2px 4px #000; font-style: italic; background: rgba(0,0,0,0.6); padding: 15px 30px; border-radius: 10px; border-left: 4px solid #aa0000; display: inline-block; max-width: 80%; }
+        .btn { padding: 15px 40px; font-size: 1.2rem; font-family: 'Courier New', Courier, monospace; background: rgba(20,20,20,0.8); color: white; border: 1px solid #555; cursor: pointer; transition: all 0.3s; margin-top: 30px; text-transform: uppercase; }
+        .btn:hover, .btn:active { background: #aa0000; border-color: #ff3333; transform: scale(1.05); }
+
+        #stage-display { position: absolute; bottom: 30px; right: 30px; font-size: 2.5rem; color: #fff; font-weight: bold; text-shadow: 2px 2px 0 #aa0000; opacity: 0.8; display: none; z-index: 10;}
+        #feedback-msg { position: absolute; top: 20%; font-size: 1.5rem; font-weight: bold; text-align: center; opacity: 0; transition: opacity 0.5s; text-shadow: 1px 1px 3px #000; padding: 10px 20px; background: rgba(0,0,0,0.5); border-radius: 5px; z-index: 10;}
+        .text-red { color: #ff3333; border: 1px solid #ff3333; }
+        .text-green { color: #33ff33; border: 1px solid #33ff33; }
+
+        #taskBar { position: absolute; top: 20px; left: 20px; color: white; background: rgba(0, 0, 0, 0.75); padding: 15px 25px; border-left: 5px solid #aa0000; z-index: 10; display: none; box-shadow: 2px 2px 15px rgba(0,0,0,0.8); }
+        #taskBar span { color: #aaa; font-size: 1.1rem; }
+        #taskBar #taskText { color: #fff; font-weight: bold; margin-left: 10px; font-size: 1.1rem; }
+
+        #bookUI { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #dcd3b6; color: #2b1d0e; padding: 5vw; border-radius: 4px; width: 70%; max-width: 650px; text-align: justify; z-index: 60; font-family: 'Georgia', serif; box-shadow: 0 0 40px rgba(0,0,0,0.9); border: 2px solid #8b5a2b; display: flex; flex-direction: column; }
+        #bookUI p { font-size: 1.3rem; margin: 0; font-style: italic; line-height: 1.8; }
+        .book-hint { font-size: 1rem; color: #555; text-align: center; margin-top: 40px; font-family: 'Courier New', Courier, monospace; font-weight: bold; cursor: pointer; }
+
+        #pause-screen, #game-over { background: rgba(0,0,0,0.9); justify-content: center; align-items: center; z-index: 100;}
+        #pause-screen p, #game-over p { font-size: 1.2rem; max-width: 600px; text-align: center; line-height: 1.5; margin-bottom: 20px; color: #ddd; padding: 0 20px;}
+        #pause-screen h1, #game-over h1 { font-size: 3rem; color: #aa0000; text-shadow: 2px 2px 5px #000; margin-bottom: 10px; text-transform: uppercase; text-align: center; }
+
+        #vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: 0 0 200px rgba(0,0,0,0.95) inset; pointer-events: none; z-index: 5; transition: box-shadow 0.3s; }
+        #chase-text { position: absolute; top: 40%; width: 100%; text-align: center; font-size: 3.5rem; color: #ff0000; font-weight: bold; text-shadow: 0 0 20px #ff0000, 2px 2px 10px #000; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.5s; font-family: 'Courier New', Courier, monospace;}
+        #white-fade { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff; z-index: 120; opacity: 0; pointer-events: none; transition: opacity 3s; }
+
+        /* --- MOBILE UI --- */
+        #mobile-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; display: none; }
+        
+        #joystick-zone { position: absolute; bottom: 10%; left: 5%; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); pointer-events: auto; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(0,0,0,0.5); pointer-events: none; }
+        
+        #action-buttons { position: absolute; bottom: 10%; right: 5%; display: flex; flex-direction: column; gap: 15px; pointer-events: auto; }
+        .action-btn { width: 80px; height: 80px; border-radius: 50%; background: rgba(170, 0, 0, 0.6); color: white; font-weight: bold; font-family: 'Courier New', Courier, monospace; border: 2px solid rgba(255,255,255,0.5); display: flex; justify-content: center; align-items: center; font-size: 1rem; box-shadow: 0 0 15px rgba(0,0,0,0.8); }
+        .action-btn:active { background: rgba(255, 0, 0, 0.8); transform: scale(0.95); }
+        
+        #touch-camera-zone { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto; z-index: -1; } 
+        
+        #desktop-hint { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 1rem; pointer-events: none; text-align: center; display: none; z-index: 10; width: 100%; }
+
+        @media (max-width: 768px) {
+            #main-menu h1, #device-selection h1 { font-size: 3rem; text-align: center; }
+            #main-menu h2 { font-size: 1.5rem; text-align: center; }
+            #main-menu, #device-selection { align-items: center; padding-left: 0; }
+            .menu-btn { text-align: center; font-size: 1.5rem; }
+            .menu-btn::before { display: none; }
+            #chase-text { font-size: 2rem; }
+            .dialog-text { font-size: 1.2rem; }
+            #stage-display { top: 20px; right: 20px; bottom: auto; font-size: 1.5rem; }
+            #taskBar { top: 60px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameCanvas"></div>
+    <div id="vignette"></div>
+    <div id="white-fade"></div>
+
+    <div id="ui-layer">
+        <div id="crosshair"></div>
+        <div id="stage-display">Lantai 1</div>
+        <div id="feedback-msg"></div>
+        <div id="chase-text">MENGAPA KAMU BERADA DI TEMPAT INI??</div>
+        <div id="desktop-hint">W,A,S,D untuk Jalan | SHIFT untuk Lari | KLIK KIRI untuk Interaksi</div>
+        
+        <div id="dialog-container" class="hidden">
+            <div class="dialog-text" id="dialogText">...</div>
+            <button id="btn-start-game" class="btn hidden" style="margin-top: 20px;">Mulai Permainan</button>
+        </div>
+    </div>
+
+    <!-- MOBILE UI -->
+    <div id="mobile-ui">
+        <div id="touch-camera-zone"></div>
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="action-buttons">
+            <div id="btn-mobile-sprint" class="action-btn">LARI</div>
+            <div id="btn-mobile-use" class="action-btn">USE</div>
+        </div>
+    </div>
+
+    <div id="eyelid-top" class="hidden"></div>
+    <div id="eyelid-bottom" class="hidden"></div>
+
+    <div id="taskBar">
+        <span>TUGAS:</span><span id="taskText">Investigasi sekitar</span>
+    </div>
+
+    <div id="bookUI" class="hidden">
+        <p>"Sudah hari kelima aku disini, tempat aneh ini menyimpan banyak misteri. Aku terlempar ke koridor tak berujung ini. Tetapi aku tau cara keluar. Aku harus membuka pintu di belakangku atau di ujung koridor itu. Jika ada kejanggalan atau 'Anomali', aku harus pergi ke pintu belakang. Jika koridor ini aman, aku harus masuk ke pintu di depan."</p>
+        <div class="book-hint" id="closeBookBtn">[Tutup Buku]</div>
+    </div>
+
+    <!-- MENU UTAMA -->
+    <div id="main-menu" class="screen">
+        <h1>Koridor 10</h1>
+        <h2>Mutiara Hotel</h2>
+        <button id="btn-play" class="menu-btn">Play</button>
+        <button id="btn-quit" class="menu-btn">Quit</button>
+    </div>
+
+    <!-- PEMILIHAN PERANGKAT -->
+    <div id="device-selection" class="screen hidden">
+        <h1>Pilih Perangkat</h1>
+        <button id="btn-pc" class="menu-btn">Komputer (PC)</button>
+        <button id="btn-mobile" class="menu-btn">Mobile / Tablet</button>
+    </div>
+
+    <!-- Berita Awal -->
+    <div id="news-screen" class="screen news-screen hidden">
+        <div class="news-container">
+            <div class="news-header">Harian Kota</div>
+            <div class="news-date">Kamis, 14 Oktober 1998</div>
+            <div class="news-body">
+                <strong>MISTERI HILANGNYA TAMU MUTIARA HOTEL BELUM TERPECAHKAN</strong><br><br>
+                Pihak kepolisian masih menyelidiki kasus hilangnya beberapa tamu di Mutiara Hotel. Rekaman CCTV menunjukkan para korban masuk ke lorong Lantai 8, namun tidak pernah terlihat keluar dari sana. Beberapa saksi mata mengaku sering mendengar suara dari lorong yang seharusnya kosong tersebut...
+            </div>
+            <button id="btn-continue-news" class="btn" style="display: block; margin: 20px auto 0;">Lanjutkan</button>
+        </div>
+    </div>
+
+    <!-- Berita Akhir (Ending) -->
+    <div id="ending-news-screen" class="screen news-screen hidden" style="background: rgba(255,255,255,0.95);">
+        <div class="news-container" style="transform: rotate(1deg); box-shadow: 5px 5px 20px rgba(0,0,0,0.3);">
+            <div class="news-header">Harian Kota</div>
+            <div class="news-date">Minggu, 17 Oktober 1998</div>
+            <div class="news-body">
+                <strong>KORBAN HILANG DITEMUKAN DALAM KONDISI LINGLUNG</strong><br><br>
+                Anak remaja ini akhirnya sudah ditemukan di depan parkiran bangunan hotel lama. Ini adalah masalah kepercayaan. Apakah anda percaya dengan "Supranatural" atau penjelasan sains yaitu "Skizofrenia"? Pihak medis menyatakan korban mengalami halusinasi berat akibat kelelahan dan trauma...
+            </div>
+            <button id="btn-finish-game" class="btn" style="background: #111; color: white; display: block; margin: 30px auto 0 auto;">TAMAT</button>
+        </div>
+    </div>
+
+    <!-- Jeda & Game Over -->
+    <div id="pause-screen" class="screen hidden">
+        <h1>JEDA</h1>
+        <p><strong>Aturan Bertahan Hidup:</strong><br><br>
+        1. Perhatikan lorong dengan seksama.<br>
+        2. Jika <strong>NORMAL</strong>, jalan terus dan buka pintu depan.<br>
+        3. Jika ada <strong>ANOMALI</strong>, segera putar balik ke pintu belakang.<br>
+        4. Capai Lantai 10 untuk keluar.</p>
+        <button id="btn-resume" class="btn">Lanjutkan Permainan</button>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+        <h1 id="end-title">Anda Tersesat</h1>
+        <p id="end-desc" style="font-size: 1.5rem;">Anda salah memilih jalan. Lorong ini tidak akan melepaskan Anda.</p>
+        <button id="btn-restart" class="btn">Bangun Kembali</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    
+    <script>
+        // --- SISTEM AUDIO (Sintesis Prosedural) ---
+        let audioCtx;
+        let bgmGain, lfoGain;
+
+        function initAudio() {
+            if (audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            // BGM (Drone Atmosphere)
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            bgmGain = audioCtx.createGain();
+            
+            osc1.type = 'sine'; osc2.type = 'triangle';
+            osc1.frequency.value = 40; // Sangat rendah
+            osc2.frequency.value = 43; // Disonansi seram
+            
+            bgmGain.gain.value = 0.05; // Suara kecil
+
+            // LFO untuk membuat suara bervolume naik-turun perlahan (bernafas)
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.1; // 1 siklus per 10 detik
+            lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 0.02;
+            
+            lfo.connect(lfoGain);
+            lfoGain.connect(bgmGain.gain);
+
+            osc1.connect(bgmGain);
+            osc2.connect(bgmGain);
+            bgmGain.connect(audioCtx.destination);
+            
+            osc1.start(); osc2.start(); lfo.start();
+        }
+
+        function playFootstep(isSprint) {
+            if (!audioCtx) return;
+            const timeNow = audioCtx.currentTime;
+            
+            // Membuat white noise untuk langkah kaki
+            const bufferSize = audioCtx.sampleRate * 0.1; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = isSprint ? 1200 : 800; // Sprint lebih nyaring
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(isSprint ? 0.04 : 0.015, timeNow); // Suara kecil
+            gain.gain.exponentialRampToValueAtTime(0.001, timeNow + 0.1);
+
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start(timeNow);
+        }
+
+        function playClockTick(isTick) {
+            if (!audioCtx) return;
+            const timeNow = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(isTick ? 800 : 600, timeNow);
+            osc.frequency.exponentialRampToValueAtTime(0.01, timeNow + 0.05);
+            
+            gain.gain.setValueAtTime(0.008, timeNow); // Suara sangat kecil
+            gain.gain.exponentialRampToValueAtTime(0.001, timeNow + 0.05);
+            
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(timeNow); osc.stop(timeNow + 0.05);
+        }
+
+        function playDoorSound() {
+            if (!audioCtx) return;
+            const timeNow = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, timeNow);
+            osc.frequency.exponentialRampToValueAtTime(40, timeNow + 0.6); // Nada berderit turun
+            
+            gain.gain.setValueAtTime(0.08, timeNow); // Agak kedengaran
+            gain.gain.linearRampToValueAtTime(0.001, timeNow + 0.6);
+            
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(timeNow); osc.stop(timeNow + 0.6);
+        }
+
+        // --- INISIALISASI DASAR ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.035);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('gameCanvas').appendChild(renderer.domElement);
+
+        const controls = new THREE.PointerLockControls(camera, document.body);
+        scene.add(controls.getObject());
+
+        // --- STATE GAME ---
+        let gameState = 'MENU'; 
+        let stage = 1;
+        let isMobile = false;
+        let hasAnomaly = false;
+        let currentAnomalyType = null;
+        let isReading = false;
+        let isWakingUp = false;
+        let wakeUpProgress = 0;
+
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let isSprinting = false; 
+        
+        let isLevel10 = false;
+        let level10Timer = 0;
+        let chaseActive = false;
+        let targetFOV = 75;
+        let chaseEntity;
+        let correctLevel10DoorIndex = -1;
+        let endCorridorZ = -48;
+
+        const playerHeight = 1.7;
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+        const centerScreen = new THREE.Vector2(0, 0); 
+        let interactables = []; 
+
+        // Grup Objek Dekorasi
+        let corridorGroup, startDoorPanel, endDoorPanel, lights = [];
+        let bookMesh, posterMesh, doorMesh, extraDoorMesh, shadowFigure, bloodDecal, trashCan;
+        let vendingMachine, plantGroup, paintingMesh, lockers = [], ceilingFan;
+
+        const startZ = 28; 
+        const doorStartZ = 32; 
+
+        const anomalies = [
+            'red_lights', 'creepy_poster', 'upside_down_poster', 'door_ajar', 'missing_door', 
+            'extra_door', 'shadow_figure', 'blood_floor', 'floating_trash', 'fov_warp', 
+            'vending_machine_off', 'huge_plant', 'scary_painting', 'crooked_painting', 
+            'missing_extinguisher', 'fan_drops', 'open_lockers'
+        ];
+
+        // --- TEKSTUR ---
+        function createFloorTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, 512, 512);
+            for(let i=0; i<512; i+=64) { for(let j=0; j<512; j+=64) { ctx.fillStyle = (i+j)%128===0 ? '#222' : '#333'; ctx.fillRect(i, j, 64, 64); ctx.strokeStyle = '#111'; ctx.strokeRect(i, j, 64, 64); }}
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 8); return tex;
+        }
+
+        function createWallTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f0e6d2'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#d9ccb3'; for(let i=0; i<500; i++) ctx.fillRect(Math.random()*256, Math.random()*256, Math.random()*10, 1);
+            ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 220, 256, 36);
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 1); return tex;
+        }
+
+        function createPosterTexture(isAnomaly) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 384; const ctx = canvas.getContext('2d');
+            if (!isAnomaly) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 256, 384); ctx.fillStyle = '#000'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText('PERATURAN', 128, 40); ctx.font = '14px Arial'; ctx.fillText('Harap tenang.', 128, 80); ctx.fillStyle = '#555'; ctx.fillRect(90, 150, 76, 100); } 
+            else { ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, 256, 384); ctx.fillStyle = '#aa0000'; ctx.font = 'bold 36px Arial'; ctx.textAlign = 'center'; ctx.fillText('BANGUN', 128, 100); ctx.fillText('SEKARANG', 128, 150); }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createPaintingTexture(isScary) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; const ctx = canvas.getContext('2d');
+            if(!isScary) {
+                ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#228B22'; ctx.fillRect(0, 128, 256, 128); ctx.fillStyle = '#8B4513'; ctx.fillRect(100, 100, 20, 50); ctx.fillStyle = '#006400'; ctx.beginPath(); ctx.arc(110, 80, 40, 0, Math.PI*2); ctx.fill(); 
+            } else {
+                ctx.fillStyle = '#000'; ctx.fillRect(0,0,256,256); ctx.fillStyle = '#ff0000'; ctx.font = 'bold 50px Arial'; ctx.textAlign = 'center'; ctx.fillText('LARI', 128, 140);
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- PEMBUATAN LINGKUNGAN ---
+        function buildCorridorBase(isFinalLevel = false) {
+            if (corridorGroup) scene.remove(corridorGroup);
+            corridorGroup = new THREE.Group();
+            scene.add(corridorGroup);
+            interactables = []; 
+            lights = [];
+
+            endCorridorZ = isFinalLevel ? -160 : -48; 
+            const corridorLength = Math.abs(doorStartZ - endCorridorZ); 
+            const corridorCenterZ = (doorStartZ + endCorridorZ) / 2;
+            const corridorWidth = 7;
+            const corridorHeight = 5;
+
+            const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture(), roughness: 0.9 });
+            const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture(), roughness: 1.0 });
+            const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 1 });
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.8 }); 
+
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(corridorWidth, corridorLength), floorMat);
+            floor.rotation.x = -Math.PI / 2; floor.position.z = corridorCenterZ; floor.receiveShadow = true; corridorGroup.add(floor);
+            
+            const carpet = new THREE.Mesh(new THREE.PlaneGeometry(3, corridorLength), new THREE.MeshStandardMaterial({ color: 0x7a0000, roughness: 0.9 }));
+            carpet.rotation.x = -Math.PI / 2; carpet.position.set(0, 0.01, corridorCenterZ); carpet.receiveShadow = true; corridorGroup.add(carpet);
+
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(corridorWidth, corridorLength), ceilingMat);
+            ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, corridorHeight, corridorCenterZ); corridorGroup.add(ceiling);
+            
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(corridorLength, corridorHeight), wallMat);
+            leftWall.rotation.y = Math.PI / 2; leftWall.position.set(-corridorWidth/2, corridorHeight/2, corridorCenterZ); leftWall.receiveShadow = true; corridorGroup.add(leftWall);
+            
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(corridorLength, corridorHeight), wallMat);
+            rightWall.rotation.y = -Math.PI / 2; rightWall.position.set(corridorWidth/2, corridorHeight/2, corridorCenterZ); rightWall.receiveShadow = true; corridorGroup.add(rightWall);
+
+            startDoorPanel = createExitDoor(doorStartZ, false, corridorWidth, corridorHeight, wallMat);
+
+            for(let i=25; i>=endCorridorZ+10; i-=15) {
+                const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 2.5), new THREE.MeshBasicMaterial({ color: 0xffffff })); lamp.position.set(0, corridorHeight - 0.05, i); corridorGroup.add(lamp);
+                const light = new THREE.PointLight(0xfff0cc, 0.8, 20); light.position.set(0, corridorHeight - 0.5, i); light.castShadow = true; corridorGroup.add(light); lights.push(light);
+            }
+
+            if (!isFinalLevel) {
+                endDoorPanel = createExitDoor(endCorridorZ, true, corridorWidth, corridorHeight, wallMat);
+
+                bookMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.7), new THREE.MeshStandardMaterial({ color: 0x4a2c11 })); bookMesh.position.set(1.5, 0.04, startZ - 2); bookMesh.rotation.y = -0.3; bookMesh.userData = { isBook: true }; corridorGroup.add(bookMesh); interactables.push(bookMesh);
+
+                [17.5, 2.5, -12.5, -27.5].forEach(z => { let staticDoor = createSideDoor(doorMat); staticDoor.position.set(corridorWidth/2 - 0.1, 0, z); staticDoor.rotation.y = Math.PI; corridorGroup.add(staticDoor); });
+                [17.5, -12.5, -27.5].forEach(z => { let staticDoor = createSideDoor(doorMat); staticDoor.position.set(-corridorWidth/2 + 0.1, 0, z); corridorGroup.add(staticDoor); });
+
+                doorMesh = createSideDoor(doorMat); doorMesh.position.set(-corridorWidth/2 + 0.1, 0, 2.5); corridorGroup.add(doorMesh);
+                extraDoorMesh = createSideDoor(doorMat); extraDoorMesh.position.set(-corridorWidth/2 + 0.1, 0, -5); extraDoorMesh.visible = false; corridorGroup.add(extraDoorMesh);
+
+                posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.8), new THREE.MeshBasicMaterial({ color: 0xffffff })); posterMesh.rotation.y = -Math.PI / 2; posterMesh.position.set(corridorWidth/2 - 0.05, 2.5, 10); corridorGroup.add(posterMesh);
+                
+                trashCan = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })); trashCan.position.set(-corridorWidth/2 + 0.6, 0.4, 8); corridorGroup.add(trashCan);
+
+                vendingMachine = new THREE.Group();
+                const vmBody = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 1), new THREE.MeshStandardMaterial({color: 0x880000})); vmBody.position.y = 1.25; vendingMachine.add(vmBody);
+                const vmGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.5), new THREE.MeshBasicMaterial({color: 0xaaaaff, transparent: true, opacity: 0.8})); vmGlass.position.set(0, 1.5, 0.51); vendingMachine.add(vmGlass);
+                const vmLight = new THREE.PointLight(0xffffff, 0.5, 3); vmLight.position.set(0, 1.5, 0.6); vendingMachine.add(vmLight);
+                vendingMachine.position.set(corridorWidth/2 - 0.6, 0, -10); vendingMachine.rotation.y = -Math.PI / 2; corridorGroup.add(vendingMachine);
+                
+                plantGroup = new THREE.Group();
+                const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 0.6, 16), new THREE.MeshStandardMaterial({color: 0x555555})); pot.position.y = 0.3; plantGroup.add(pot);
+                const leaves = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), new THREE.MeshStandardMaterial({color: 0x005500})); leaves.position.y = 1.0; plantGroup.add(leaves);
+                plantGroup.position.set(-corridorWidth/2 + 0.6, 0, -20); corridorGroup.add(plantGroup);
+
+                paintingMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 1.5), new THREE.MeshBasicMaterial({ map: createPaintingTexture(false) }));
+                paintingMesh.position.set(-corridorWidth/2 + 0.05, 2.5, -2); paintingMesh.rotation.y = Math.PI / 2; corridorGroup.add(paintingMesh);
+
+                lockers = [];
+                for(let i=0; i<3; i++) {
+                    let locker = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2, 0.6), new THREE.MeshStandardMaterial({color: 0x444444}));
+                    locker.position.set(corridorWidth/2 - 0.35, 1, -22 - (i * 0.85));
+                    corridorGroup.add(locker); lockers.push(locker);
+                }
+
+                ceilingFan = new THREE.Group();
+                const fanCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16), new THREE.MeshStandardMaterial({color: 0x222222})); ceilingFan.add(fanCenter);
+                for(let i=0; i<3; i++) {
+                    const blade = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.2), new THREE.MeshStandardMaterial({color: 0x111111}));
+                    blade.position.x = 0.8; const pivot = new THREE.Group(); pivot.rotation.y = (i * Math.PI * 2) / 3; pivot.add(blade); ceilingFan.add(pivot);
+                }
+                ceilingFan.position.set(0, corridorHeight - 0.1, -15); corridorGroup.add(ceilingFan);
+
+                shadowFigure = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 4, 16), new THREE.MeshBasicMaterial({ color: 0x000000 })); shadowFigure.position.set(0, 2, -40); shadowFigure.visible = false; corridorGroup.add(shadowFigure);
+                
+                const bC = document.createElement('canvas'); bC.width = 128; bC.height = 128; const bCtx = bC.getContext('2d'); bCtx.fillStyle = '#6a0000'; bCtx.beginPath(); bCtx.arc(64, 64, 40, 0, Math.PI*2); bCtx.fill();
+                bloodDecal = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bC), transparent: true, opacity: 0.9 })); bloodDecal.rotation.x = -Math.PI / 2; bloodDecal.position.set(0, 0.02, -8); bloodDecal.visible = false; corridorGroup.add(bloodDecal);
+            } 
+            else {
+                const endWall = new THREE.Mesh(new THREE.PlaneGeometry(corridorWidth, corridorHeight), wallMat); endWall.position.set(0, corridorHeight/2, endCorridorZ); corridorGroup.add(endWall);
+
+                correctLevel10DoorIndex = Math.floor(Math.random() * 10);
+                let doorIndex = 0;
+                for(let z = endCorridorZ + 15; z > endCorridorZ; z -= 2.8) {
+                    let d = createSideDoor(doorMat); d.position.set(-corridorWidth/2 + 0.1, 0, z); corridorGroup.add(d);
+                    d.children[1].userData = { isLevel10Door: true, isCorrect: (doorIndex === correctLevel10DoorIndex), index: doorIndex };
+                    interactables.push(d.children[1]); doorIndex++;
+                }
+                for(let z = endCorridorZ + 15; z > endCorridorZ; z -= 2.8) {
+                    let d = createSideDoor(doorMat); d.position.set(corridorWidth/2 - 0.1, 0, z); d.rotation.y = Math.PI; corridorGroup.add(d);
+                    d.children[1].userData = { isLevel10Door: true, isCorrect: (doorIndex === correctLevel10DoorIndex), index: doorIndex };
+                    interactables.push(d.children[1]); doorIndex++;
+                }
+
+                chaseEntity = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.8, 4.5, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                body.position.y = 2.25; chaseEntity.add(body);
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), eyeMat); eyeL.position.set(-0.4, 3.8, 1.1); chaseEntity.add(eyeL);
+                const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), eyeMat); eyeR.position.set(0.4, 3.8, 1.1); chaseEntity.add(eyeR);
+                chaseEntity.position.set(0, 0, startZ + 10); chaseEntity.visible = false; corridorGroup.add(chaseEntity);
+            }
+        }
+
+        function createExitDoor(zPos, isEndDoor, corridorWidth, corridorHeight, wallMat) {
+            const isFacingZ = isEndDoor ? 1 : -1;
+            const wall = new THREE.Mesh(new THREE.PlaneGeometry(corridorWidth, corridorHeight), wallMat); wall.position.set(0, corridorHeight/2, zPos); wall.receiveShadow = true;
+            if (isEndDoor) wall.rotation.y = 0; else wall.rotation.y = Math.PI; corridorGroup.add(wall);
+            
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x111111 })); frame.position.set(0, 1.7, zPos + (0.2 * isFacingZ)); corridorGroup.add(frame);
+            const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.0, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a5a6a, roughness: 0.8 })); 
+            doorPanel.position.set(-1.1, 1.6, zPos + (0.2 * isFacingZ)); doorPanel.geometry.translate(1.1, 0, 0); 
+            doorPanel.userData = { isEnd: isEndDoor, isDoor: true }; corridorGroup.add(doorPanel); interactables.push(doorPanel);
+            
+            if (isEndDoor) {
+                const eC = document.createElement('canvas'); eC.width = 256; eC.height = 64; const eCtx = eC.getContext('2d'); eCtx.fillStyle = '#000'; eCtx.fillRect(0,0,256,64); eCtx.fillStyle = '#00ff00'; eCtx.font = 'bold 40px Arial'; eCtx.textAlign = 'center'; eCtx.fillText('EXIT', 128, 45);
+                const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.4), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(eC) })); exitSign.position.set(0, 3.6, zPos + 0.11); corridorGroup.add(exitSign);
+            }
+            return doorPanel;
+        }
+
+        function createSideDoor(material) {
+            const group = new THREE.Group();
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4.2, 2.4), new THREE.MeshStandardMaterial({ color: 0x221111 })); frame.position.set(0, 2.1, 0); group.add(frame);
+            const door = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 2), material); door.geometry.translate(0, 0, 1); door.position.set(0, 2.1, -1); group.add(door);
+            return group;
+        }
+
+        // --- SISTEM GAMEPLAY ---
+        function generateStage() {
+            targetFOV = 75;
+            camera.fov = targetFOV; camera.updateProjectionMatrix();
+            document.getElementById('vignette').style.boxShadow = "0 0 200px rgba(0,0,0,0.95) inset";
+            document.getElementById('stage-display').style.display = 'block';
+            document.getElementById('stage-display').innerText = `Lantai ${stage}`;
+            isSprinting = false;
+
+            if (stage === 10) {
+                isLevel10 = true; level10Timer = 0; chaseActive = false; hasAnomaly = false;
+                document.getElementById('taskText').innerText = "Jalan terus...";
+                buildCorridorBase(true);
+            } else {
+                isLevel10 = false;
+                buildCorridorBase(false);
+                if (bookMesh) bookMesh.visible = (stage === 1);
+                
+                hasAnomaly = stage > 1 && Math.random() > 0.5;
+                if (hasAnomaly) {
+                    currentAnomalyType = anomalies[Math.floor(Math.random() * anomalies.length)];
+                    applyAnomaly(currentAnomalyType);
+                } else { currentAnomalyType = null; }
+            }
+
+            controls.getObject().position.set(0, playerHeight, startZ);
+            camera.rotation.set(0, 0, 0);
+            controls.getObject().rotation.set(0, 0, 0);
+            velocity.set(0,0,0);
+        }
+
+        function applyAnomaly(type) {
+            if (!posterMesh) return;
+            switch(type) {
+                case 'red_lights': lights.forEach(l => l.color.setHex(0xff0000)); scene.fog.color.setHex(0x220000); break;
+                case 'creepy_poster': posterMesh.material.map = createPosterTexture(true); break;
+                case 'upside_down_poster': posterMesh.rotation.z = Math.PI; break;
+                case 'door_ajar': doorMesh.children[1].rotation.y = Math.PI / 4; break;
+                case 'missing_door': doorMesh.visible = false; break;
+                case 'extra_door': extraDoorMesh.visible = true; break;
+                case 'shadow_figure': shadowFigure.visible = true; break;
+                case 'blood_floor': bloodDecal.visible = true; break;
+                case 'floating_trash': trashCan.position.y = 2; break;
+                case 'fov_warp': targetFOV = 100; break;
+                case 'vending_machine_off': vendingMachine.children[2].intensity = 0; vendingMachine.children[1].material.opacity = 0.2; break; 
+                case 'huge_plant': plantGroup.scale.set(2.5, 2.5, 2.5); break;
+                case 'scary_painting': paintingMesh.material.map = createPaintingTexture(true); break;
+                case 'crooked_painting': paintingMesh.rotation.z = Math.PI / 6; break;
+                case 'missing_extinguisher': break;
+                case 'fan_drops': ceilingFan.position.y = 1.0; break;
+                case 'open_lockers': lockers[0].rotation.y = Math.PI / 3; lockers[1].rotation.y = Math.PI / 2; break;
+            }
+        }
+
+        function showFeedback(text, colorClass) {
+            const fb = document.getElementById('feedback-msg'); fb.innerText = text; fb.className = colorClass; fb.style.opacity = 1; setTimeout(() => { fb.style.opacity = 0; }, 2000);
+        }
+
+        function checkDoorChoice(isEndDoor) {
+            if (isLevel10) return;
+            if (isEndDoor) {
+                if (!hasAnomaly) { stage++; showFeedback("Koridor Aman. Lanjut.", "text-green"); } 
+                else { stage = 1; showFeedback("Ada Anomali! Kembali ke awal.", "text-red"); }
+            } else {
+                if (hasAnomaly) { stage++; showFeedback("Anomali dihindari. Lanjut.", "text-green"); } 
+                else { stage = 1; showFeedback("Aman kok balik? Kembali ke awal.", "text-red"); }
+            }
+            document.getElementById('vignette').style.boxShadow = "0 0 300px rgba(0,0,0,1) inset";
+            setTimeout(() => { generateStage(); }, 300);
+        }
+
+        function endGame(isWin, customMsg = null) {
+            gameState = 'GAMEOVER';
+            if(!isMobile) controls.unlock();
+            
+            document.getElementById('game-over').classList.remove('hidden');
+            document.getElementById('taskBar').style.display = 'none';
+            document.getElementById('stage-display').style.display = 'none';
+            document.getElementById('crosshair').style.display = 'none';
+            document.getElementById('mobile-ui').style.display = 'none';
+            document.getElementById('chase-text').style.opacity = 0;
+            
+            if (!isWin) {
+                document.getElementById('end-title').innerText = "ANDA TERSESAT"; 
+                document.getElementById('end-title').style.color = "#aa0000"; 
+                document.getElementById('end-desc').innerText = customMsg || "Lorong ini telah menelan Anda selamanya.";
+            }
+        }
+
+        function triggerTrueEnding() {
+            gameState = 'ENDING';
+            if(!isMobile) controls.unlock();
+            document.getElementById('chase-text').style.opacity = 0;
+            document.getElementById('crosshair').style.display = 'none';
+            document.getElementById('taskBar').style.display = 'none';
+            document.getElementById('stage-display').style.display = 'none';
+            document.getElementById('mobile-ui').style.display = 'none';
+            
+            document.getElementById('white-fade').style.opacity = 1;
+            setTimeout(() => { document.getElementById('ending-news-screen').classList.remove('hidden'); }, 3000);
+        }
+
+        function interactObject() {
+            if (gameState !== 'PLAYING') return;
+            raycaster.setFromCamera(centerScreen, camera);
+            const intersects = raycaster.intersectObjects(interactables);
+            if (intersects.length > 0 && intersects[0].distance < 4.0) {
+                const hitObj = intersects[0].object;
+                
+                if (hitObj.userData.isBook) {
+                    isReading = true; 
+                    if(!isMobile) controls.unlock();
+                    document.getElementById('bookUI').classList.remove('hidden');
+                    document.getElementById('crosshair').style.display = 'none';
+                    if(isMobile) document.getElementById('mobile-ui').style.display = 'none';
+                }
+                else if (hitObj.userData.isLevel10Door) {
+                    playDoorSound(); // Bunyi pintu terbuka
+                    hitObj.rotation.y = Math.PI / 3;
+                    if (hitObj.userData.isCorrect) { triggerTrueEnding(); } 
+                    else { setTimeout(() => { endGame(false, "Itu bukan jalan keluarnya..."); }, 500); }
+                }
+                else if (hitObj.userData.isDoor) {
+                    playDoorSound(); // Bunyi pintu terbuka
+                    hitObj.rotation.y = hitObj.userData.isEnd ? Math.PI/4 : -Math.PI/4;
+                    setTimeout(() => { checkDoorChoice(hitObj.userData.isEnd); }, 500);
+                }
+            }
+        }
+
+        // --- INTERAKSI EVENT LISTENER ---
+        document.addEventListener('mousedown', (event) => {
+            if (event.button !== 0 || isMobile || isReading) return; 
+            if (gameState === 'PLAYING' && controls.isLocked) { interactObject(); }
+        });
+
+        document.getElementById('closeBookBtn').addEventListener('click', () => {
+            isReading = false; document.getElementById('bookUI').classList.add('hidden');
+            if(!isMobile) {
+                document.getElementById('crosshair').style.display = 'block';
+                if (gameState === 'PLAYING') controls.lock();
+            } else {
+                document.getElementById('mobile-ui').style.display = 'block';
+            }
+        });
+
+        document.getElementById('btn-play').addEventListener('click', () => {
+            initAudio(); // Mulai sistem audio saat berinteraksi dengan DOM
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('device-selection').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-pc').addEventListener('click', () => {
+            isMobile = false;
+            document.getElementById('device-selection').classList.add('hidden');
+            document.getElementById('news-screen').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-mobile').addEventListener('click', () => {
+            isMobile = true;
+            document.getElementById('device-selection').classList.add('hidden');
+            document.getElementById('news-screen').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-quit').addEventListener('click', () => {
+            document.getElementById('main-menu').innerHTML = '<h1 style="color:#aa0000; text-align:center; width:100%; margin-top:20vh;">TIDAK ADA JALAN KELUAR</h1>';
+        });
+
+        const dialogLines = ["Ugh... kepalaku...", "Di mana aku? Kenapa aku kembali ke tempat ini?", "Aku harus segera mencari jalan keluar..."];
+        let currentDialogIdx = 0;
+
+        document.getElementById('btn-continue-news').addEventListener('click', () => {
+            document.getElementById('news-screen').classList.add('hidden');
+            gameState = 'CUTSCENE';
+            controls.getObject().position.set(0, 0.2, startZ); 
+            camera.rotation.z = Math.PI / 4; camera.rotation.x = Math.PI / 8;
+
+            document.getElementById('eyelid-top').classList.remove('hidden');
+            document.getElementById('eyelid-bottom').classList.remove('hidden');
+
+            setTimeout(() => {
+                document.body.classList.add('eyes-open');
+                setTimeout(() => {
+                    isWakingUp = true; 
+                    document.getElementById('dialog-container').classList.remove('hidden');
+                    showNextDialog();
+                }, 2500);
+            }, 1000);
+        });
+
+        function showNextDialog() {
+            if (currentDialogIdx < dialogLines.length) {
+                document.getElementById('dialogText').innerText = dialogLines[currentDialogIdx];
+                currentDialogIdx++; setTimeout(showNextDialog, 3500); 
+            } else {
+                document.getElementById('dialogText').innerText = "Aku harus bersiap...";
+                document.getElementById('btn-start-game').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('btn-start-game').addEventListener('click', () => {
+            document.getElementById('dialog-container').classList.add('hidden');
+            document.getElementById('eyelid-top').style.display = 'none';
+            document.getElementById('eyelid-bottom').style.display = 'none';
+            document.getElementById('taskBar').style.display = 'block';
+            
+            stage = 1; generateStage(); gameState = 'PLAYING';
+            
+            if(!isMobile) {
+                document.getElementById('crosshair').style.display = 'block';
+                document.getElementById('desktop-hint').style.display = 'block';
+                setTimeout(() => { document.getElementById('desktop-hint').style.display = 'none'; }, 5000);
+                controls.lock(); 
+            } else {
+                document.getElementById('mobile-ui').style.display = 'block';
+                document.getElementById('crosshair').style.display = 'block'; 
+            }
+        });
+
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            document.getElementById('game-over').classList.add('hidden');
+            document.getElementById('taskBar').style.display = 'block';
+            stage = 1; generateStage(); gameState = 'PLAYING';
+            if(!isMobile) { document.getElementById('crosshair').style.display = 'block'; controls.lock(); } 
+            else { document.getElementById('mobile-ui').style.display = 'block'; document.getElementById('crosshair').style.display = 'block'; }
+        });
+
+        document.getElementById('btn-resume').addEventListener('click', () => {
+            document.getElementById('pause-screen').classList.add('hidden');
+            if (gameState === 'PLAYING' && !isReading && !isMobile) controls.lock();
+        });
+
+        document.getElementById('btn-finish-game').addEventListener('click', () => { location.reload(); });
+
+        controls.addEventListener('unlock', function () { 
+            if (gameState === 'PLAYING' && !isReading && !isMobile) document.getElementById('pause-screen').classList.remove('hidden'); 
+        });
+        controls.addEventListener('lock', function () { 
+            if(!isMobile) document.getElementById('pause-screen').classList.add('hidden'); 
+        });
+
+        // --- KEYBOARD CONTROLS (PC) ---
+        document.addEventListener('keydown', (event) => {
+            if (gameState !== 'PLAYING' || isReading || isMobile) return;
+            switch(event.code) { 
+                case 'KeyW': case 'ArrowUp': moveForward = true; break; 
+                case 'KeyA': case 'ArrowLeft': moveLeft = true; break; 
+                case 'KeyS': case 'ArrowDown': moveBackward = true; break; 
+                case 'KeyD': case 'ArrowRight': moveRight = true; break; 
+                case 'ShiftLeft': case 'ShiftRight': isSprinting = true; break;
+            }
+        });
+        document.addEventListener('keyup', (event) => {
+            if(isMobile) return;
+            switch(event.code) { 
+                case 'KeyW': case 'ArrowUp': moveForward = false; break; 
+                case 'KeyA': case 'ArrowLeft': moveLeft = false; break; 
+                case 'KeyS': case 'ArrowDown': moveBackward = false; break; 
+                case 'KeyD': case 'ArrowRight': moveRight = false; break; 
+                case 'ShiftLeft': case 'ShiftRight': isSprinting = false; break;
+            }
+        });
+
+        // --- MOBILE CONTROLS (TOUCH) ---
+        const btnSprint = document.getElementById('btn-mobile-sprint');
+        btnSprint.addEventListener('touchstart', (e) => { e.preventDefault(); isSprinting = true; btnSprint.style.transform = 'scale(0.9)'; });
+        btnSprint.addEventListener('touchend', (e) => { e.preventDefault(); isSprinting = false; btnSprint.style.transform = 'scale(1)'; });
+        
+        const btnUse = document.getElementById('btn-mobile-use');
+        btnUse.addEventListener('touchstart', (e) => { e.preventDefault(); interactObject(); btnUse.style.transform = 'scale(0.9)'; });
+        btnUse.addEventListener('touchend', (e) => { e.preventDefault(); btnUse.style.transform = 'scale(1)'; });
+
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let joyActive = false; let joyOrigin = { x: 0, y: 0 };
+        
+        joystickZone.addEventListener('touchstart', (e) => {
+            e.preventDefault(); joyActive = true;
+            const touch = e.changedTouches[0]; const rect = joystickZone.getBoundingClientRect();
+            joyOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            updateJoystick(touch.clientX, touch.clientY);
+        });
+
+        joystickZone.addEventListener('touchmove', (e) => {
+            e.preventDefault(); if(!joyActive) return;
+            updateJoystick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        });
+
+        joystickZone.addEventListener('touchend', (e) => {
+            e.preventDefault(); joyActive = false;
+            joystickKnob.style.transform = `translate(-50%, -50%)`;
+            moveForward = moveBackward = moveLeft = moveRight = false;
+        });
+
+        function updateJoystick(clientX, clientY) {
+            let dx = clientX - joyOrigin.x; let dy = clientY - joyOrigin.y;
+            let dist = Math.sqrt(dx*dx + dy*dy); let maxDist = 40; 
+            if(dist > maxDist) { dx = (dx/dist)*maxDist; dy = (dy/dist)*maxDist; }
+            
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            let normX = dx / maxDist; let normY = dy / maxDist; const threshold = 0.2;
+            moveForward = normY < -threshold; moveBackward = normY > threshold; moveRight = normX > threshold; moveLeft = normX < -threshold;
+        }
+
+        const touchCamZone = document.getElementById('touch-camera-zone');
+        let lookActive = false; let lastLookX = 0, lastLookY = 0;
+
+        touchCamZone.addEventListener('touchstart', (e) => {
+            e.preventDefault(); lookActive = true;
+            lastLookX = e.changedTouches[0].clientX; lastLookY = e.changedTouches[0].clientY;
+        });
+
+        touchCamZone.addEventListener('touchmove', (e) => {
+            e.preventDefault(); if(!lookActive || !isMobile || gameState !== 'PLAYING') return;
+            
+            let dx = e.changedTouches[0].clientX - lastLookX; let dy = e.changedTouches[0].clientY - lastLookY;
+            lastLookX = e.changedTouches[0].clientX; lastLookY = e.changedTouches[0].clientY;
+
+            const PI_2 = Math.PI / 2;
+            controls.getObject().rotation.y -= dx * 0.005;
+            camera.rotation.x -= dy * 0.005;
+            camera.rotation.x = Math.max(-PI_2, Math.min(PI_2, camera.rotation.x));
+        });
+
+        touchCamZone.addEventListener('touchend', (e) => { e.preventDefault(); lookActive = false; });
+
+        // --- GAME LOOP ---
+        buildCorridorBase(false); 
+        controls.getObject().position.set(0, playerHeight, startZ);
+
+        let lastStepTime = 0;
+        let lastTickTime = 0;
+        let clockTickIsTick = true;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1); 
+            const time = clock.getElapsedTime();
+
+            if (ceilingFan && gameState === 'PLAYING') ceilingFan.rotation.y += delta * 5;
+
+            let currentTargetFOV = targetFOV;
+            if (gameState === 'PLAYING' && !chaseActive && isSprinting && (moveForward || moveBackward || moveLeft || moveRight)) {
+                currentTargetFOV = targetFOV + 10; 
+            }
+            if (camera.fov !== currentTargetFOV) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, currentTargetFOV, 0.05); camera.updateProjectionMatrix();
+            }
+
+            if (gameState === 'MENU') {
+                camera.rotation.y = Math.sin(time * 0.2) * 0.1; 
+                controls.getObject().position.y = playerHeight + Math.sin(time * 1) * 0.05; 
+            }
+
+            if (gameState === 'CUTSCENE' && isWakingUp) {
+                wakeUpProgress += delta * 0.3; 
+                if (wakeUpProgress >= 1) { wakeUpProgress = 1; isWakingUp = false; }
+                controls.getObject().position.y = THREE.MathUtils.lerp(0.2, playerHeight, wakeUpProgress);
+                camera.rotation.z = THREE.MathUtils.lerp(Math.PI / 4, 0, wakeUpProgress);
+                camera.rotation.x = THREE.MathUtils.lerp(Math.PI / 8, 0, wakeUpProgress);
+            }
+
+            if (gameState === 'PLAYING') {
+                // Suara Jam Berdetak setiap 1 Detik
+                if (time - lastTickTime > 1.0) {
+                    playClockTick(clockTickIsTick);
+                    clockTickIsTick = !clockTickIsTick;
+                    lastTickTime = time;
+                }
+
+                if (controls.isLocked || isMobile) {
+                    raycaster.setFromCamera(centerScreen, camera);
+                    const intersects = raycaster.intersectObjects(interactables);
+                    const crosshair = document.getElementById('crosshair');
+                    if (intersects.length > 0 && intersects[0].distance < 4.0) crosshair.classList.add('active');
+                    else crosshair.classList.remove('active');
+
+                    velocity.x -= velocity.x * 10.0 * delta;
+                    velocity.z -= velocity.z * 10.0 * delta;
+
+                    direction.z = Number(moveForward) - Number(moveBackward);
+                    direction.x = Number(moveRight) - Number(moveLeft);
+                    direction.normalize(); 
+
+                    const speedMulti = chaseActive ? 75.0 : (isSprinting ? 65.0 : 35.0); 
+
+                    if (moveForward || moveBackward) velocity.z -= direction.z * speedMulti * delta;
+                    if (moveLeft || moveRight) velocity.x -= direction.x * speedMulti * delta;
+
+                    controls.moveRight(-velocity.x * delta);
+                    controls.moveForward(-velocity.z * delta);
+
+                    // Suara Langkah Kaki
+                    if (moveForward || moveBackward || moveLeft || moveRight) {
+                        let stepInterval = isSprinting ? 0.3 : 0.6;
+                        if (time - lastStepTime > stepInterval) {
+                            playFootstep(isSprinting);
+                            lastStepTime = time;
+                        }
+                    }
+
+                    const pos = controls.getObject().position;
+                    if (pos.x < -2.5) pos.x = -2.5;
+                    if (pos.x > 2.5) pos.x = 2.5;
+                    if (pos.z > doorStartZ - 1 && !chaseActive) pos.z = doorStartZ - 1; 
+                    if (pos.z < endCorridorZ + 2) pos.z = endCorridorZ + 2;
+
+                    const bobbingSpeed = isSprinting ? 22 : 15;
+                    if (moveForward || moveBackward || moveLeft || moveRight) { pos.y = playerHeight + Math.sin(time * bobbingSpeed) * 0.06; } 
+                    else { pos.y = playerHeight; }
+
+                    if (isLevel10) {
+                        if (!chaseActive) {
+                            level10Timer += delta;
+                            if (level10Timer > 15) {
+                                chaseActive = true;
+                                document.getElementById('taskText').innerText = "LARI!";
+                                document.getElementById('chase-text').style.opacity = 1;
+                                targetFOV = 115; 
+                                
+                                chaseEntity.position.z = pos.z + 25;
+                                chaseEntity.visible = true;
+
+                                setInterval(() => {
+                                    if(chaseActive && gameState === 'PLAYING') {
+                                        document.getElementById('vignette').style.boxShadow = "0 0 300px rgba(255,0,0,0.8) inset";
+                                        setTimeout(() => { document.getElementById('vignette').style.boxShadow = "0 0 200px rgba(0,0,0,0.95) inset"; }, 200);
+                                    }
+                                }, 600);
+                            }
+                        } else {
+                            chaseEntity.position.z -= 18.0 * delta; 
+                            camera.rotation.z = Math.sin(time * 40) * 0.03; 
+                            
+                            if (chaseEntity.position.z < pos.z + 1.5) {
+                                endGame(false, "Ia telah menangkapmu.");
+                            }
+                        }
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
